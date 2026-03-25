@@ -35,6 +35,7 @@ export function O2CWorkspace() {
   const [history, setHistory] = useState<ConversationTurn[]>([]);
   const [isGraphLoading, setIsGraphLoading] = useState(false);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
+  const [graphResetToken, setGraphResetToken] = useState(0);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const latestResponse = history[0]?.response ?? null;
@@ -233,7 +234,17 @@ export function O2CWorkspace() {
               <p className="panelEyebrow">Graph Explorer</p>
               <h2>Relationships</h2>
             </div>
-            <span className="statusPill">{isGraphLoading ? "Updating graph" : `${graphNodes.length} nodes loaded`}</span>
+            <div className="panelActions">
+              <button
+                className="ghostButton"
+                type="button"
+                onClick={() => setGraphResetToken((current) => current + 1)}
+                disabled={graphNodes.length === 0}
+              >
+                Reset view
+              </button>
+              <span className="statusPill">{isGraphLoading ? "Updating graph" : `${graphNodes.length} nodes loaded`}</span>
+            </div>
           </div>
 
           <label className="searchLabel" htmlFor="graph-search">
@@ -272,6 +283,7 @@ export function O2CWorkspace() {
             edges={graphEdges}
             selectedNodeId={selectedNode?.nodeId ?? null}
             highlightedNodeIds={highlightedNodeIds}
+            resetViewToken={graphResetToken}
             onNodeOpen={(nodeId) => {
               void openNode(nodeId);
             }}

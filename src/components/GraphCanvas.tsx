@@ -10,6 +10,7 @@ interface GraphCanvasProps {
   edges: GraphEdgeRecord[];
   selectedNodeId: string | null;
   highlightedNodeIds: string[];
+  resetViewToken: number;
   onNodeOpen: (nodeId: string) => void;
 }
 
@@ -18,6 +19,7 @@ export function GraphCanvas({
   edges,
   selectedNodeId,
   highlightedNodeIds,
+  resetViewToken,
   onNodeOpen,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -150,11 +152,18 @@ export function GraphCanvas({
     layout.run();
 
     requestAnimationFrame(() => {
-      cy.resize();
-      cy.fit(cy.elements(), 24);
-      cy.center(cy.elements());
+      fitGraph(cy, false);
     });
   }, [edges, nodes]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || resetViewToken === 0) {
+      return;
+    }
+
+    fitGraph(cy, true);
+  }, [resetViewToken]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -207,4 +216,25 @@ function getLayoutOptions(nodeCount: number, edgeCount: number): LayoutOptions {
     nestingFactor: 0.9,
     numIter: isLargeGraph ? 1200 : 900,
   };
+}
+
+function fitGraph(cy: Core, animate: boolean) {
+  const elements = cy.elements();
+  if (elements.length === 0) {
+    return;
+  }
+
+  cy.resize();
+  cy.animate(
+    {
+      fit: {
+        eles: elements,
+        padding: 24,
+      },
+    },
+    {
+      duration: animate ? 220 : 0,
+    },
+  );
+  cy.center(elements);
 }

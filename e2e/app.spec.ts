@@ -10,6 +10,7 @@ test("loads the split-pane experience", async ({ page }) => {
 test("renders a large graph neighborhood after searching for a node", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText(/3 nodes loaded/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Reset view/i })).toBeEnabled();
 
   const searchInput = page.locator("#graph-search");
   await searchInput.fill("Cookmouth");
@@ -19,4 +20,6 @@ test("renders a large graph neighborhood after searching for a node", async ({ p
   await expect(page.getByText(/221 nodes loaded/i)).toBeVisible();
   await expect(page.getByRole("heading", { name: /Cookmouth Plant/i })).toBeVisible();
   await expect(page.locator(".graphCanvas canvas")).toHaveCount(3);
+  await page.getByRole("button", { name: /Reset view/i }).click();
+  await expect(page.getByText(/221 nodes loaded/i)).toBeVisible();
 });
