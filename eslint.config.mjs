@@ -5,6 +5,11 @@ const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
 });
 
-const config = [...compat.config(nextVitals)];
+const config = [
+  {
+    ignores: [".next/**", "node_modules/**", "coverage/**", "dist/**", "playwright-report/**", "test-results/**"],
+  },
+  ...compat.config(nextVitals),
+];
 
 export default config;

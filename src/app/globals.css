@@ -195,6 +195,8 @@ textarea {
   margin: 16px 0;
   border-radius: 22px;
   border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
   background:
     linear-gradient(135deg, rgba(215, 240, 244, 0.55), rgba(255, 255, 255, 0.95)),
     radial-gradient(circle at top, rgba(255, 143, 61, 0.16), transparent 34%);

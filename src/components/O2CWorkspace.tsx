@@ -50,10 +50,18 @@ export function O2CWorkspace() {
           { signal: controller.signal },
         );
         const payload = (await response.json()) as NeighborhoodPayload;
-        mergeGraph(payload.nodes, payload.edges);
-        setSelectedNode(
-          payload.node ?? payload.nodes.find((node) => node.nodeId === FEATURED_NODE_ID) ?? null,
-        );
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        startTransition(() => {
+          setGraphNodes(payload.nodes);
+          setGraphEdges(payload.edges);
+          setSelectedNode(
+            payload.node ?? payload.nodes.find((node) => node.nodeId === FEATURED_NODE_ID) ?? null,
+          );
+        });
       } finally {
         if (!controller.signal.aborted) {
           setIsGraphLoading(false);
@@ -101,27 +109,65 @@ export function O2CWorkspace() {
   }, [selectedNode]);
 
   async function openNode(nodeId: string) {
-    setIsGraphLoading(true);
-    try {
-      const response = await fetch(`/api/graph/neighborhood?nodeId=${encodeURIComponent(nodeId)}&depth=1`);
-      const payload = (await response.json()) as NeighborhoodPayload;
-      mergeGraph(payload.nodes, payload.edges);
+    await loadFocusedGraph([nodeId], nodeId);
+  }
 
-      if (payload.node) {
-        setSelectedNode(payload.node);
-      } else {
-        setSelectedNode((current) => current ?? payload.nodes.find((node) => node.nodeId === nodeId) ?? null);
+  async function loadFocusedGraph(nodeIds: string[], preferredNodeId: string, signal?: AbortSignal) {
+    const uniqueNodeIds = uniqueStrings(nodeIds).slice(0, 3);
+
+    if (uniqueNodeIds.length === 0) {
+      startTransition(() => {
+        setGraphNodes([]);
+        setGraphEdges([]);
+        setSelectedNode(null);
+      });
+      return;
+    }
+
+    setIsGraphLoading(true);
+
+    try {
+      const payloads = await Promise.all(uniqueNodeIds.map((nodeId) => fetchNeighborhood(nodeId, signal)));
+
+      if (signal?.aborted) {
+        return;
       }
+
+      const nodes = mergeById(
+        [],
+        payloads.flatMap((payload) => payload.nodes),
+        "nodeId",
+      );
+      const edges = mergeById(
+        [],
+        payloads.flatMap((payload) => payload.edges),
+        "edgeId",
+      );
+      const selected =
+        payloads.find((payload) => payload.node?.nodeId === preferredNodeId)?.node ??
+        nodes.find((node) => node.nodeId === preferredNodeId) ??
+        payloads[0]?.node ??
+        nodes[0] ??
+        null;
+
+      startTransition(() => {
+        setGraphNodes(nodes);
+        setGraphEdges(edges);
+        setSelectedNode(selected);
+      });
     } finally {
-      setIsGraphLoading(false);
+      if (!signal?.aborted) {
+        setIsGraphLoading(false);
+      }
     }
   }
 
-  function mergeGraph(nodes: GraphNodeRecord[], edges: GraphEdgeRecord[]) {
-    startTransition(() => {
-      setGraphNodes((current) => mergeById(current, nodes, "nodeId"));
-      setGraphEdges((current) => mergeById(current, edges, "edgeId"));
+  async function fetchNeighborhood(nodeId: string, signal?: AbortSignal) {
+    const response = await fetch(`/api/graph/neighborhood?nodeId=${encodeURIComponent(nodeId)}&depth=1`, {
+      signal,
     });
+
+    return (await response.json()) as NeighborhoodPayload;
   }
 
   async function handleQuerySubmit(message: string) {
@@ -149,9 +195,14 @@ export function O2CWorkspace() {
       setHistory((current) => [{ prompt, response: payload }, ...current].slice(0, 6));
       setHighlightedNodeIds(payload.relatedNodeIds);
 
-      for (const nodeId of payload.relatedNodeIds.slice(0, 3)) {
-        await openNode(nodeId);
-      }
+      const nextNodeIds =
+        payload.relatedNodeIds.length > 0
+          ? payload.relatedNodeIds.slice(0, 3)
+          : selectedNode
+            ? [selectedNode.nodeId]
+            : [FEATURED_NODE_ID];
+
+      await loadFocusedGraph(nextNodeIds, payload.relatedNodeIds[0] ?? selectedNode?.nodeId ?? FEATURED_NODE_ID);
     } finally {
       setIsQueryLoading(false);
     }
@@ -330,6 +381,10 @@ export function O2CWorkspace() {
       </section>
     </main>
   );
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
 function mergeById<T extends Record<TKey, string>, TKey extends keyof T>(
