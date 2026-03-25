@@ -1,0 +1,365 @@
+:root {
+  --bg: #f3f7fb;
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-strong: #ffffff;
+  --text: #092540;
+  --muted: #58718b;
+  --border: rgba(12, 67, 112, 0.16);
+  --accent: #0f7c90;
+  --accent-strong: #ff8f3d;
+  --accent-soft: #d7f0f4;
+  --shadow: 0 28px 60px rgba(8, 37, 66, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(15, 124, 144, 0.18), transparent 32%),
+    radial-gradient(circle at top right, rgba(255, 143, 61, 0.18), transparent 24%),
+    linear-gradient(180deg, #f9fbfd 0%, #eef4f9 100%);
+  color: var(--text);
+  font-family: "Segoe UI", sans-serif;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.workspace {
+  max-width: 1580px;
+  margin: 0 auto;
+  padding: 32px 24px 40px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 24px;
+}
+
+.eyebrow,
+.panelEyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
+.hero h1,
+.panelHeader h2,
+.inspectorHeader h3 {
+  margin: 0;
+  font-family: var(--font-heading), "Aptos", sans-serif;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 4vw, 4rem);
+  line-height: 0.96;
+  max-width: 12ch;
+}
+
+.heroCopy {
+  max-width: 66ch;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 16px 0 0;
+}
+
+.heroCard,
+.panel,
+.sqlBlock,
+.inspector {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  border-radius: 24px;
+}
+
+.heroCard {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.heroCard span,
+.heroCard small {
+  color: var(--muted);
+}
+
+.workspaceShell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
+  gap: 20px;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.panelHeader,
+.inspectorHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.statusPill,
+.nodeTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.searchLabel {
+  display: block;
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.searchInput,
+.chatInput {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 14px 16px;
+  color: var(--text);
+}
+
+.chatInput {
+  resize: vertical;
+  min-height: 108px;
+}
+
+.searchResults {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.searchResult,
+.sampleChip,
+.primaryButton {
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
+  color: var(--text);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.searchResult:hover,
+.sampleChip:hover,
+.primaryButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 124, 144, 0.45);
+  box-shadow: 0 16px 32px rgba(8, 37, 66, 0.1);
+}
+
+.searchResult {
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.searchResult span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.graphCanvas {
+  min-height: 520px;
+  margin: 16px 0;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, rgba(215, 240, 244, 0.55), rgba(255, 255, 255, 0.95)),
+    radial-gradient(circle at top, rgba(255, 143, 61, 0.16), transparent 34%);
+}
+
+.inspector {
+  padding: 18px;
+}
+
+.inspectorSubtitle {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.metadataList {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+}
+
+.metadataList div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding-top: 12px;
+  border-top: 1px solid rgba(12, 67, 112, 0.08);
+}
+
+.metadataList dt {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.metadataList dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.sampleStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 20px;
+}
+
+.sampleChip {
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.chatComposer {
+  display: grid;
+  gap: 12px;
+}
+
+.primaryButton {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, var(--accent), #0a6372);
+  color: #f8fcff;
+  border-color: transparent;
+}
+
+.primaryButton:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.conversation {
+  display: grid;
+  gap: 16px;
+  margin: 22px 0;
+}
+
+.conversationTurn {
+  display: grid;
+  gap: 10px;
+}
+
+.messageBubble {
+  border-radius: 20px;
+  padding: 14px 16px;
+  line-height: 1.55;
+}
+
+.userBubble {
+  background: #edf4fb;
+  border: 1px solid rgba(12, 67, 112, 0.09);
+}
+
+.assistantBubble {
+  background: #fffdf8;
+  border: 1px solid rgba(255, 143, 61, 0.22);
+}
+
+.assistantBubble p,
+.emptyState {
+  margin: 0;
+}
+
+.refusalText {
+  margin-top: 10px;
+  color: #924a12;
+}
+
+.sqlBlock {
+  padding: 18px;
+  margin-top: 16px;
+}
+
+.sqlBlock pre {
+  overflow: auto;
+  padding: 16px;
+  border-radius: 16px;
+  background: #071a2c;
+  color: #d6f1ff;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85rem;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.resultTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.resultTable th,
+.resultTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(12, 67, 112, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.resultTable th {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1180px) {
+  .workspaceShell,
+  .hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace {
+    padding: 20px 14px 28px;
+  }
+
+  .graphCanvas {
+    min-height: 380px;
+  }
+
+  .metadataList div {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
