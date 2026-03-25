@@ -8,9 +8,17 @@ import { type QueryResponseBody } from "@/lib/contracts";
 import { env } from "@/lib/env";
 import { loadNormalizedDataset, type NormalizedDataset } from "@/lib/o2c/dataset";
 import { validateReadOnlySql } from "@/lib/query/guardrails";
+import {
+  formatSemanticCatalogForPrompt,
+  formatSemanticRelationshipsForPrompt,
+  UNSUPPORTED_TOPIC_HINTS,
+} from "@/lib/query/semantic-catalog";
 import { planTemplateQuery, type TemplatePlan } from "@/lib/query/templates";
 
 const REFUSAL_MESSAGE = "This system is designed to answer questions related to the provided dataset only.";
+const SQL_LIMIT_FALLBACK = 100;
+const UNSUPPORTED_CONCEPT_PATTERN =
+  /\b(employee|headcount|weather|shipping costs?|freight|vendor|supplier|profit margins?|margins?|warehouse manager|returns?|rma|competitor|satisfaction|survey|equipment|asset|procurement|procure|raw materials?|support tickets?|helpdesk)\b/i;
 
 const plannerSchema = z.object({
   sql: z.string(),
@@ -33,7 +41,14 @@ export async function runNaturalLanguageQuery(message: string, focusNodeIds: str
 
   const dataset = await loadNormalizedDataset();
   const templatePlan = planTemplateQuery(trimmedMessage, dataset);
-  const domainDecision = await classifyDomain(trimmedMessage, focusNodeIds, dataset, Boolean(templatePlan));
+  const entityHints = resolveEntityHints(trimmedMessage, dataset);
+  const domainDecision = await classifyDomain(
+    trimmedMessage,
+    focusNodeIds,
+    dataset,
+    Boolean(templatePlan),
+    entityHints,
+  );
   if (!domainDecision.inDomain) {
     return {
       answer: REFUSAL_MESSAGE,
@@ -57,9 +72,17 @@ export async function runNaturalLanguageQuery(message: string, focusNodeIds: str
     sqlText = validateReadOnlySql(templatePlan.sql);
     rows = await executePlan(templatePlan, dataset);
   } else if (env.DATABASE_URL && env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    const llmPlan = await generateSqlPlan(trimmedMessage, focusNodeIds);
-    sqlText = validateReadOnlySql(llmPlan.sql);
-    rows = await executeSql(sqlText);
+    let llmPlan = await generateSqlPlan(trimmedMessage, focusNodeIds, entityHints);
+
+    try {
+      sqlText = llmPlan.sql;
+      rows = await executeSql(sqlText);
+    } catch (error) {
+      llmPlan = await repairSqlPlan(trimmedMessage, focusNodeIds, entityHints, llmPlan.sql, error);
+      sqlText = llmPlan.sql;
+      rows = await executeSql(sqlText);
+    }
+
     mode = "llm";
     rationale = llmPlan.rationale;
   } else {
@@ -117,7 +140,7 @@ async function executeSql(query: string) {
 
   try {
     await client.query("begin");
-    await client.query("set local statement_timeout = 3000");
+    await client.query(`set local statement_timeout = ${env.QUERY_STATEMENT_TIMEOUT_MS ?? 3000}`);
     const result = await client.query(query);
     await client.query("commit");
     return result.rows as Array<Record<string, unknown>>;
@@ -129,33 +152,15 @@ async function executeSql(query: string) {
   }
 }
 
-async function generateSqlPlan(message: string, focusNodeIds: string[]) {
-  const prompt = `
-You translate natural language questions about an SAP order-to-cash dataset into safe Postgres SELECT queries.
+export function prepareGeneratedSql(query: string) {
+  let sqlText = query.trim().replace(/;+\s*$/g, "");
+  sqlText = sqlText.replace(/\bcount\s*\(\s*\*\s*\)/gi, "count(1)");
 
-Rules:
-- Query only from these views: v_o2c_flow_item, v_billing_trace, v_entity_lookup, v_customer_growth, v_customer_status
-- Never use *, DML, DDL, comments, or multiple statements
-- Always include a LIMIT <= 100
-- Use only these columns:
-  v_o2c_flow_item: sales_order_id, sales_order_item_id, customer_id, customer_name, product_id, product_description, production_plant_id, storage_location, requested_quantity, order_net_amount, currency, delivery_count, first_delivery_document_id, billing_document_count, first_billing_document_id, accounting_document_id, payment_count, flow_status
-  v_billing_trace: billing_document_id, billing_document_item_id, billing_document_type, billing_document_date, billing_document_is_cancelled, company_code, fiscal_year, accounting_document_id, sales_order_id, sales_order_item_id, delivery_document_id, delivery_document_item_id, customer_id, customer_name, product_id, product_description, billing_net_amount, currency, journal_entry_count, payment_count, payment_clearing_documents, flow_status
-  v_entity_lookup: node_id, node_type, entity_id, label, subtitle, search_text
-  v_customer_growth: customer_id, customer_name, order_date, order_year, order_month, sales_order_count, sales_order_item_count, total_order_amount, delivered_item_count, billed_item_count, posted_item_count, paid_item_count
-  v_customer_status: customer_id, customer_name, business_partner_is_blocked, creation_date
-- Prefer direct filters and simple aggregates.
+  if (!/\blimit\b/i.test(sqlText)) {
+    sqlText = `${sqlText}\nlimit ${SQL_LIMIT_FALLBACK}`;
+  }
 
-Focused nodes: ${focusNodeIds.length > 0 ? focusNodeIds.join(", ") : "none"}
-Question: ${message}
-  `.trim();
-
-  const result = await generateObject({
-    model: google("gemini-2.5-flash"),
-    schema: plannerSchema,
-    prompt,
-  });
-
-  return result.object;
+  return validateReadOnlySql(sqlText);
 }
 
 async function buildGroundedAnswer(
@@ -163,6 +168,11 @@ async function buildGroundedAnswer(
   rowsPreview: Array<Record<string, unknown>>,
   rationale: string,
 ) {
+  const directAnswer = buildDirectAnswer(rowsPreview);
+  if (directAnswer) {
+    return directAnswer;
+  }
+
   if (!env.GOOGLE_GENERATIVE_AI_API_KEY) {
     return buildGenericAnswer(rowsPreview);
   }
@@ -171,8 +181,10 @@ async function buildGroundedAnswer(
     model: google("gemini-2.5-flash-lite"),
     prompt: `
 Answer the question using only the returned rows.
+If the question asks for a direct attribute and the rows contain it, answer with the exact value in the first sentence.
+If a unit is present, include it.
 If data is partial, say so.
-Do not invent facts.
+Do not invent facts, totals, trends, or labels that are not in the rows.
 
 Question: ${message}
 Planner rationale: ${rationale}
@@ -188,6 +200,7 @@ async function classifyDomain(
   focusNodeIds: string[],
   dataset: NormalizedDataset,
   hasTemplatePlan: boolean,
+  entityHints: string[],
 ) {
   const normalized = message.toLowerCase();
 
@@ -199,12 +212,16 @@ async function classifyDomain(
     return { inDomain: true, reason: "The message matched a supported dataset-backed query pattern." };
   }
 
+  if (UNSUPPORTED_CONCEPT_PATTERN.test(normalized)) {
+    return { inDomain: false, reason: "The message asks for concepts that are outside the dataset scope." };
+  }
+
   if (DOMAIN_HINTS.some((hint) => normalized.includes(hint))) {
     return { inDomain: true, reason: "Message contains O2C domain terms." };
   }
 
-  if (dataset.entityLookup.some((row) => normalized.includes(row.label.toLowerCase()))) {
-    return { inDomain: true, reason: "The message references a known entity in the dataset." };
+  if (entityHints.length > 0 || dataset.entityLookup.some((row) => normalized.includes(row.label.toLowerCase()))) {
+    return { inDomain: true, reason: "The message references known entities in the dataset." };
   }
 
   if (/\b(poem|story|weather|capital|recipe|joke|movie|sports|song)\b/i.test(normalized)) {
@@ -219,9 +236,19 @@ async function classifyDomain(
         reason: z.string(),
       }),
       prompt: `
-Decide whether this user message is about the SAP order-to-cash dataset.
-In-domain topics include orders, deliveries, billing, invoices, customers, products, payments, journal entries, addresses, plants, and graph exploration.
-Out-of-domain topics should be rejected.
+Decide whether this user message can be answered from the SAP order-to-cash dataset.
+Return inDomain=false if the question asks for information that is not available in the supported views, even if it mentions customers, products, plants, or orders.
+In-domain topics include customer/product/plant master data, sales orders, sales order items, deliveries, billing documents, billing items, AR journal entries, AR payments, graph entities, and curated O2C flow analytics.
+Out-of-domain examples include ${UNSUPPORTED_TOPIC_HINTS.join(", ")}.
+
+Supported semantic layer:
+${formatSemanticCatalogForPrompt()}
+
+Key relationships:
+${formatSemanticRelationshipsForPrompt()}
+
+Matched entities:
+${entityHints.length > 0 ? entityHints.join("\n") : "none"}
 
 Message: ${message}
       `.trim(),
@@ -231,6 +258,108 @@ Message: ${message}
   }
 
   return { inDomain: false, reason: "No domain signals were found." };
+}
+
+async function generateSqlPlan(message: string, focusNodeIds: string[], entityHints: string[]) {
+  return generateSqlPlanWithPrompt(buildPlannerPrompt(message, focusNodeIds, entityHints));
+}
+
+async function repairSqlPlan(
+  message: string,
+  focusNodeIds: string[],
+  entityHints: string[],
+  previousSql: string,
+  error: unknown,
+) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const prompt = `
+The previous SQL plan for this SAP order-to-cash dataset failed validation or execution.
+Rewrite it into a safe Postgres query that follows all rules below.
+
+Rules:
+- Query only from the allowlisted semantic views below
+- Never query raw tables
+- Never use SELECT *
+- Use count(1) instead of count(*)
+- Use exactly one read-only SELECT or CTE-backed SELECT statement
+- Include LIMIT <= ${SQL_LIMIT_FALLBACK}
+- Use only allowlisted columns
+
+Supported semantic layer:
+${formatSemanticCatalogForPrompt()}
+
+Key relationships:
+${formatSemanticRelationshipsForPrompt()}
+
+Matched entities:
+${entityHints.length > 0 ? entityHints.join("\n") : "none"}
+
+Focused nodes: ${focusNodeIds.length > 0 ? focusNodeIds.join(", ") : "none"}
+Question: ${message}
+Previous SQL:
+${previousSql}
+Failure:
+${errorMessage}
+  `.trim();
+
+  return generateSqlPlanWithPrompt(prompt);
+}
+
+async function generateSqlPlanWithPrompt(prompt: string) {
+  let lastError: unknown;
+
+  for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const result = await generateObject({
+          model: google(modelName),
+          schema: plannerSchema,
+          prompt,
+        });
+
+        return {
+          sql: prepareGeneratedSql(result.object.sql),
+          rationale: `${result.object.rationale} Planned with ${modelName}.`,
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Unable to generate a safe SQL query.");
+}
+
+function buildPlannerPrompt(message: string, focusNodeIds: string[], entityHints: string[]) {
+  return `
+You translate natural language questions about a fixed SAP order-to-cash dataset into safe Postgres SQL.
+
+Rules:
+- Query only from the allowlisted semantic views below
+- Never query raw tables
+- Never use SELECT *
+- Use count(1) instead of count(*)
+- Use only one statement
+- Use only read-only SELECT or CTE-backed SELECT
+- Always include LIMIT <= ${SQL_LIMIT_FALLBACK}
+- Use only columns listed in the semantic layer
+- Prefer the curated views v_o2c_flow_item and v_billing_trace for end-to-end flow questions
+- Prefer entity views like v_customers, v_products, v_sales_orders, v_plants, and v_payments_ar for specific detail lookups
+- Prefer direct equality filters for ids and exact entity names when available
+- If the question asks for a value plus its unit, return both columns
+
+Supported semantic layer:
+${formatSemanticCatalogForPrompt()}
+
+Key relationships:
+${formatSemanticRelationshipsForPrompt()}
+
+Matched entities:
+${entityHints.length > 0 ? entityHints.join("\n") : "none"}
+
+Focused nodes: ${focusNodeIds.length > 0 ? focusNodeIds.join(", ") : "none"}
+Question: ${message}
+  `.trim();
 }
 
 function buildTemplateAnswer(plan: TemplatePlan, rows: Array<Record<string, unknown>>) {
@@ -283,6 +412,20 @@ function buildTemplateAnswer(plan: TemplatePlan, rows: Array<Record<string, unkn
         : [];
       return `${Number(first.blocked_percentage ?? 0).toFixed(2)}% of customers are currently blocked (${first.blocked_customer_count} of ${first.total_customer_count}). Blocked customer IDs: ${blockedCustomerIds.join(", ")}.`;
     }
+    case "product_gross_weight_lookup": {
+      const first = rows[0];
+      if (first.gross_weight == null || !first.weight_unit) {
+        return "Gross weight information is not available in the dataset for that product.";
+      }
+      return `${first.gross_weight} ${first.weight_unit}`;
+    }
+    case "product_net_weight_lookup": {
+      const first = rows[0];
+      if (first.net_weight == null || !first.weight_unit) {
+        return "Net weight information is not available in the dataset for that product.";
+      }
+      return `${first.net_weight} ${first.weight_unit}`;
+    }
     default:
       return buildGenericAnswer(rows);
   }
@@ -294,6 +437,88 @@ function buildGenericAnswer(rows: Array<Record<string, unknown>>) {
   }
 
   return `I found ${rows.length} matching row(s). The preview contains the highest-signal records returned by the query.`;
+}
+
+function buildDirectAnswer(rows: Array<Record<string, unknown>>) {
+  if (rows.length !== 1) {
+    return null;
+  }
+
+  const entries = Object.entries(rows[0]).filter(([, value]) => value != null);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  if (entries.length === 1) {
+    return `The answer is ${formatAnswerValue(entries[0][1])}.`;
+  }
+
+  const unitEntry = entries.find(([key]) => /(?:_unit|currency)$/i.test(key));
+  const measureEntry = entries.find(([key]) => /(?:weight|amount|quantity|value)$/i.test(key));
+
+  if (measureEntry && unitEntry) {
+    return `The answer is ${formatAnswerValue(measureEntry[1])} ${formatAnswerValue(unitEntry[1])}.`;
+  }
+
+  const nonDescriptorEntries = entries.filter(
+    ([key]) => !/(?:_id|_name|description|label|subtitle)$/i.test(key),
+  );
+  if (nonDescriptorEntries.length === 1) {
+    return `The answer is ${formatAnswerValue(nonDescriptorEntries[0][1])}.`;
+  }
+
+  return null;
+}
+
+function resolveEntityHints(message: string, dataset: NormalizedDataset) {
+  const normalized = message.toLowerCase();
+  const hints = new Set<string>();
+
+  for (const customer of dataset.customers) {
+    if (
+      normalized.includes(customer.customerId.toLowerCase()) ||
+      normalized.includes(customer.businessPartnerName.toLowerCase()) ||
+      normalized.includes(customer.businessPartnerFullName.toLowerCase())
+    ) {
+      hints.add(`customer ${customer.customerId} = ${customer.businessPartnerName}`);
+    }
+  }
+
+  for (const product of dataset.products) {
+    if (
+      normalized.includes(product.productId.toLowerCase()) ||
+      normalized.includes(product.productDescription.toLowerCase()) ||
+      (product.productOldId && normalized.includes(product.productOldId.toLowerCase()))
+    ) {
+      hints.add(`product ${product.productId} = ${product.productDescription}`);
+    }
+  }
+
+  for (const plant of dataset.plants) {
+    if (normalized.includes(plant.plantId.toLowerCase()) || normalized.includes(plant.plantName.toLowerCase())) {
+      hints.add(`plant ${plant.plantId} = ${plant.plantName}`);
+    }
+  }
+
+  for (const order of dataset.salesOrders) {
+    if (normalized.includes(order.salesOrderId.toLowerCase())) {
+      hints.add(`sales order ${order.salesOrderId} customer ${order.soldToParty}`);
+    }
+  }
+
+  for (const billingDocument of dataset.billingDocuments) {
+    if (normalized.includes(billingDocument.billingDocumentId.toLowerCase())) {
+      hints.add(`billing document ${billingDocument.billingDocumentId}`);
+    }
+  }
+
+  for (const payment of dataset.payments) {
+    if (normalized.includes(payment.accountingDocumentId.toLowerCase())) {
+      hints.add(`payment accounting document ${payment.accountingDocumentId}`);
+    }
+  }
+
+  return [...hints].slice(0, 10);
 }
 
 function deriveRelatedNodeIds(rows: Array<Record<string, unknown>>) {
@@ -364,4 +589,16 @@ function formatDateValue(value: unknown) {
   }
 
   return String(value ?? "");
+}
+
+function formatAnswerValue(value: unknown): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => formatAnswerValue(item)).join(", ");
+  }
+
+  return String(value);
 }

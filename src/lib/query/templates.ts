@@ -5,7 +5,9 @@ export type TemplateQueryKind =
   | "trace_billing_document"
   | "incomplete_sales_orders"
   | "customer_growth"
-  | "blocked_customer_percentage";
+  | "blocked_customer_percentage"
+  | "product_gross_weight_lookup"
+  | "product_net_weight_lookup";
 
 export interface TemplatePlan {
   kind: TemplateQueryKind;
@@ -18,6 +20,7 @@ const BILLING_TRACE_ID_PATTERN = /\b\d{8}\b/;
 export function planTemplateQuery(message: string, dataset: NormalizedDataset): TemplatePlan | null {
   const normalized = message.toLowerCase();
   const matchedCustomer = matchCustomer(normalized, dataset);
+  const matchedProduct = matchProduct(normalized, dataset);
 
   if (
     (normalized.includes("highest") || normalized.includes("most")) &&
@@ -334,6 +337,54 @@ limit 60
     };
   }
 
+  if (matchedProduct && normalized.includes("gross weight")) {
+    return {
+      kind: "product_gross_weight_lookup",
+      sql: `
+select
+  product_id,
+  product_description,
+  gross_weight,
+  weight_unit
+from v_product_details
+where product_id = '${matchedProduct.productId}'
+limit 1
+      `.trim(),
+      execute: () => [
+        {
+          product_id: matchedProduct.productId,
+          product_description: matchedProduct.productDescription,
+          gross_weight: matchedProduct.grossWeight,
+          weight_unit: matchedProduct.weightUnit,
+        },
+      ],
+    };
+  }
+
+  if (matchedProduct && normalized.includes("net weight")) {
+    return {
+      kind: "product_net_weight_lookup",
+      sql: `
+select
+  product_id,
+  product_description,
+  net_weight,
+  weight_unit
+from v_product_details
+where product_id = '${matchedProduct.productId}'
+limit 1
+      `.trim(),
+      execute: () => [
+        {
+          product_id: matchedProduct.productId,
+          product_description: matchedProduct.productDescription,
+          net_weight: matchedProduct.netWeight,
+          weight_unit: matchedProduct.weightUnit,
+        },
+      ],
+    };
+  }
+
   return null;
 }
 
@@ -353,5 +404,19 @@ function matchCustomer(normalizedMessage: string, dataset: NormalizedDataset) {
     const shortName = customer.businessPartnerName.toLowerCase();
     const fullName = customer.businessPartnerFullName.toLowerCase();
     return normalizedMessage.includes(shortName) || normalizedMessage.includes(fullName);
+  });
+}
+
+function matchProduct(normalizedMessage: string, dataset: NormalizedDataset) {
+  return dataset.products.find((product) => {
+    const productId = product.productId.toLowerCase();
+    const productDescription = product.productDescription.toLowerCase();
+    const oldId = product.productOldId?.toLowerCase() ?? "";
+
+    return (
+      normalizedMessage.includes(productId) ||
+      normalizedMessage.includes(productDescription) ||
+      (oldId.length > 0 && normalizedMessage.includes(oldId))
+    );
   });
 }

@@ -97,6 +97,16 @@ flowchart LR
 | UI | `src/components/O2CWorkspace.tsx`, `src/components/GraphCanvas.tsx` | Graph explorer, inspector, chat, SQL preview, rows preview |
 | API routes | `src/app/api/*` | Expose graph and query endpoints |
 
+## Evaluation Criteria
+
+| Area | What is being evaluated | How this project answers it |
+| --- | --- | --- |
+| Code quality and architecture | Structure, readability, and maintainability | The codebase is split by concern: normalization (`src/lib/o2c/dataset.ts`), schema/views (`src/db/*`), graph services (`src/lib/graph/service.ts`), query logic (`src/lib/query/*`), API routes (`src/app/api/*`), and UI (`src/components/*`). This keeps business modeling, SQL safety, and frontend behavior separate and maintainable. |
+| Graph modelling | Quality and clarity of entities and relationships | The graph is built from explicit business entities such as customers, products, plants, sales orders, deliveries, billing documents, journal entries, and payments. Relationships are named with business meaning like `PLACED_BY`, `FULFILLED_BY`, `BILLED_AS`, `POSTED_TO`, and `CLEARED_BY`, so the graph mirrors the real O2C flow instead of being a generic node network. |
+| Database / storage choice | Architectural decisions and tradeoffs | The project uses PostgreSQL, not a separate graph database. The tradeoff is intentional: Postgres keeps normalized tables, graph projection tables, and semantic query views in one free-tier-friendly system. This is simpler to deploy and audit than adding Neo4j or another graph store for a fixed assignment dataset. |
+| LLM integration and prompting | How natural language is translated into useful queries | The query pipeline is hybrid. It first tries deterministic templates for high-value business questions, then falls back to Gemini only when needed. The LLM is prompted against a narrow allowlisted semantic layer, not raw tables, which makes NL-to-SQL translation more reliable and easier to validate. |
+| Guardrails | Ability to restrict misuse and off-topic prompts | Guardrails operate at two levels: domain refusal and SQL refusal. Off-topic prompts are rejected with a fixed dataset-only message. In-domain SQL is parsed with `pgsql-ast-parser` and blocked unless it is a single read-only allowlisted query with a `LIMIT`, allowed relations, and allowed columns. |
+
 ## Data Model
 
 ### Normalized tables
@@ -461,12 +471,29 @@ Recommended deployment shape:
 - LLM:
   - Gemini 2.5 Flash family
 
+Deployment steps: see `DEPLOYMENT.md`.
+
 ### Production behavior
 
 - build with `next build`
 - run with `next start`
 - use a real `DATABASE_URL`
 - optionally use a real `GOOGLE_GENERATIVE_AI_API_KEY` for open-ended NL-to-SQL fallback
+
+### Scalability notes (current vs future)
+
+Current choices (good for evaluator demos and small traffic):
+
+- Single Next.js app (UI + API routes) deployed on Vercel
+- Postgres holds both normalized business data and the graph projection (`graph_nodes`, `graph_edges`)
+- Read-only semantic views power NL-to-SQL, with strict allowlists and a statement timeout
+
+Future choices (if you need more scale later):
+
+- Use a managed Postgres pooler + `DATABASE_POOL_MAX=1` to avoid serverless connection spikes
+- Add caching for `/api/query` (SQL plan + rows) to reduce LLM calls and speed up repeat questions
+- Add request rate limits to protect LLM quota
+- Add indexes/materialized views for heavy analytical queries or larger datasets
 
 ## Example Dataset-Backed Queries
 

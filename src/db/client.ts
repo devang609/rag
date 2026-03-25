@@ -15,7 +15,9 @@ export function getPool(): Pool {
   if (!globalThis.__o2cPool) {
     globalThis.__o2cPool = new Pool({
       connectionString: env.DATABASE_URL,
-      max: 10,
+      max: env.DATABASE_POOL_MAX ?? 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
     });
   }
 

@@ -1,5 +1,5 @@
 import { validateReadOnlySql } from "@/lib/query/guardrails";
-import { runNaturalLanguageQuery } from "@/lib/query/service";
+import { prepareGeneratedSql, runNaturalLanguageQuery } from "@/lib/query/service";
 
 describe("query service", () => {
   it("returns the top billed products from the dataset", async () => {
@@ -66,6 +66,28 @@ describe("query service", () => {
     expect(response.answer).toContain("75.00%");
   });
 
+  it("returns the net weight for a product from product master data", async () => {
+    const response = await runNaturalLanguageQuery("What is the net weight of product B8907367002246?");
+
+    expect(response.refusal).toBeUndefined();
+    expect(response.rowsPreview[0]?.product_id).toBe("B8907367002246");
+    expect(response.rowsPreview[0]?.net_weight).toBe(0.1);
+    expect(response.rowsPreview[0]?.weight_unit).toBe("KG");
+    expect(response.sql).toContain("from v_product_details");
+    expect(response.answer).toBe("0.1 KG");
+  });
+
+  it("returns the gross weight for a product from product master data", async () => {
+    const response = await runNaturalLanguageQuery("What is the gross weight of product 3001468?");
+
+    expect(response.refusal).toBeUndefined();
+    expect(response.rowsPreview[0]?.product_id).toBe("3001468");
+    expect(response.rowsPreview[0]?.gross_weight).toBe(0.012);
+    expect(response.rowsPreview[0]?.weight_unit).toBe("KG");
+    expect(response.sql).toContain("from v_product_details");
+    expect(response.answer).toBe("0.012 KG");
+  });
+
   it("refuses unrelated prompts", async () => {
     const response = await runNaturalLanguageQuery("Write a poem about the moon.");
 
@@ -94,5 +116,15 @@ order by sales_year
 limit 10
       `),
     ).not.toThrow();
+  });
+
+  it("repairs generated SQL by adding a safe LIMIT and normalizing count(*)", () => {
+    expect(
+      prepareGeneratedSql(`
+select count(*) as customer_count
+from v_customers
+where business_partner_is_blocked = true
+      `),
+    ).toContain("limit 100");
   });
 });

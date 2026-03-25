@@ -1,70 +1,6 @@
 import { parse, type Statement } from "pgsql-ast-parser";
 
-const ALLOWED_RELATIONS = new Set([
-  "v_o2c_flow_item",
-  "v_billing_trace",
-  "v_entity_lookup",
-  "v_customer_growth",
-  "v_customer_status",
-]);
-
-const ALLOWED_COLUMNS = new Set([
-  "sales_order_id",
-  "sales_order_item_id",
-  "customer_id",
-  "customer_name",
-  "product_id",
-  "product_description",
-  "creation_date",
-  "production_plant_id",
-  "storage_location",
-  "requested_quantity",
-  "order_net_amount",
-  "currency",
-  "delivery_count",
-  "first_delivery_document_id",
-  "billing_document_count",
-  "first_billing_document_id",
-  "accounting_document_id",
-  "payment_count",
-  "flow_status",
-  "billing_document_id",
-  "billing_document_item_id",
-  "billing_document_type",
-  "billing_document_date",
-  "billing_document_is_cancelled",
-  "company_code",
-  "fiscal_year",
-  "delivery_document_id",
-  "delivery_document_item_id",
-  "billing_net_amount",
-  "journal_entry_count",
-  "payment_clearing_documents",
-  "node_id",
-  "node_type",
-  "entity_id",
-  "label",
-  "subtitle",
-  "search_text",
-  "business_partner_is_blocked",
-  "order_date",
-  "order_year",
-  "order_month",
-  "sales_order_count",
-  "sales_order_item_count",
-  "total_order_amount",
-  "delivered_item_count",
-  "billed_item_count",
-  "posted_item_count",
-  "paid_item_count",
-  "total_customer_count",
-  "blocked_customer_count",
-  "active_customer_count",
-  "blocked_percentage",
-  "blocked_customer_ids",
-  "active_customer_ids",
-  "affected_item_count",
-]);
+import { ALLOWED_COLUMN_NAMES, ALLOWED_RELATION_NAMES } from "@/lib/query/semantic-catalog";
 
 const BLOCKED_KEYWORDS = [
   /\binsert\b/i,
@@ -116,13 +52,13 @@ export function validateReadOnlySql(query: string): string {
   }
 
   for (const relation of context.relations) {
-    if (!ALLOWED_RELATIONS.has(relation)) {
+    if (!ALLOWED_RELATION_NAMES.has(relation)) {
       throw new Error(`Queries may only read from allowlisted views. Found: ${relation}`);
     }
   }
 
   for (const column of context.columns) {
-    if (!ALLOWED_COLUMNS.has(column)) {
+    if (!ALLOWED_COLUMN_NAMES.has(column)) {
       throw new Error(`Column ${column} is not allowlisted for query access.`);
     }
   }

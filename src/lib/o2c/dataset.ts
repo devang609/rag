@@ -12,15 +12,36 @@ import {
 } from "@/lib/contracts";
 import { getDatasetRoot } from "@/lib/env";
 
+interface TimeValue {
+  hours?: number;
+  minutes?: number;
+  seconds?: number;
+}
+
 interface SalesOrderHeaderRaw {
   salesOrder: string;
   soldToParty: string;
+  salesOrganization: string | null;
+  distributionChannel: string | null;
+  organizationDivision: string | null;
+  salesGroup: string | null;
+  salesOffice: string | null;
   creationDate: string | null;
+  createdByUser: string | null;
+  lastChangeDateTime: string | null;
   totalNetAmount: string;
   transactionCurrency: string | null;
+  pricingDate: string | null;
   requestedDeliveryDate: string | null;
   overallDeliveryStatus: string | null;
   overallOrdReltdBillgStatus: string | null;
+  overallSdDocReferenceStatus: string | null;
+  headerBillingBlockReason: string | null;
+  deliveryBlockReason: string | null;
+  incotermsClassification: string | null;
+  incotermsLocation1: string | null;
+  customerPaymentTerms: string | null;
+  totalCreditCheckStatus: string | null;
   salesOrderType: string | null;
 }
 
@@ -36,14 +57,24 @@ interface SalesOrderItemRaw {
   storageLocation: string | null;
   materialGroup: string | null;
   salesOrderItemCategory: string | null;
+  itemBillingBlockReason: string | null;
+  salesDocumentRjcnReason: string | null;
 }
 
 interface DeliveryHeaderRaw {
   deliveryDocument: string;
+  actualGoodsMovementDate: string | null;
+  actualGoodsMovementTime: TimeValue | string | null;
   creationDate: string | null;
+  creationTime: TimeValue | string | null;
+  deliveryBlockReason: string | null;
+  hdrGeneralIncompletionStatus: string | null;
+  headerBillingBlockReason: string | null;
+  lastChangeDate: string | null;
   shippingPoint: string | null;
   overallGoodsMovementStatus: string | null;
   overallPickingStatus: string | null;
+  overallProofOfDeliveryStatus: string | null;
 }
 
 interface DeliveryItemRaw {
@@ -53,6 +84,9 @@ interface DeliveryItemRaw {
   storageLocation: string | null;
   actualDeliveryQuantity: string | null;
   deliveryQuantityUnit: string | null;
+  batch: string | null;
+  itemBillingBlockReason: string | null;
+  lastChangeDate: string | null;
   referenceSdDocument: string;
   referenceSdDocumentItem: string;
 }
@@ -70,6 +104,8 @@ interface BillingHeaderRaw {
   totalNetAmount: string;
   transactionCurrency: string | null;
   creationDate: string | null;
+  creationTime: TimeValue | string | null;
+  lastChangeDateTime: string | null;
 }
 
 interface BillingItemRaw {
@@ -89,14 +125,24 @@ interface JournalEntryRaw {
   fiscalYear: string;
   accountingDocument: string;
   accountingDocumentItem: string;
+  accountingDocumentType: string | null;
   referenceDocument: string | null;
   postingDate: string | null;
   documentDate: string | null;
   customer: string | null;
+  amountInCompanyCodeCurrency: string | null;
   amountInTransactionCurrency: string;
+  companyCodeCurrency: string | null;
+  assignmentReference: string | null;
   transactionCurrency: string | null;
   clearingAccountingDocument: string | null;
   clearingDate: string | null;
+  clearingDocFiscalYear: string | null;
+  glAccount: string | null;
+  financialAccountType: string | null;
+  profitCenter: string | null;
+  costCenter: string | null;
+  lastChangeDateTime: string | null;
 }
 
 interface PaymentRaw {
@@ -105,12 +151,24 @@ interface PaymentRaw {
   accountingDocument: string;
   accountingDocumentItem: string;
   customer: string | null;
+  amountInCompanyCodeCurrency: string | null;
   amountInTransactionCurrency: string;
+  companyCodeCurrency: string | null;
+  assignmentReference: string | null;
   transactionCurrency: string | null;
   clearingAccountingDocument: string | null;
   clearingDate: string | null;
+  clearingDocFiscalYear: string | null;
+  invoiceReference: string | null;
+  invoiceReferenceFiscalYear: string | null;
+  salesDocument: string | null;
+  salesDocumentItem: string | null;
   postingDate: string | null;
   documentDate: string | null;
+  glAccount: string | null;
+  financialAccountType: string | null;
+  profitCenter: string | null;
+  costCenter: string | null;
 }
 
 interface BusinessPartnerRaw {
@@ -120,8 +178,18 @@ interface BusinessPartnerRaw {
   businessPartnerGrouping: string | null;
   businessPartnerFullName: string | null;
   businessPartnerName: string | null;
+  correspondenceLanguage: string | null;
+  createdByUser: string | null;
+  creationTime: TimeValue | string | null;
+  firstName: string | null;
+  formOfAddress: string | null;
+  industry: string | null;
+  lastChangeDate: string | null;
+  lastName: string | null;
   organizationBpName1: string | null;
+  organizationBpName2: string | null;
   businessPartnerIsBlocked: boolean;
+  isMarkedForArchiving: boolean;
   creationDate: string | null;
 }
 
@@ -139,10 +207,18 @@ interface AddressRaw {
 interface ProductRaw {
   product: string;
   productType: string | null;
+  crossPlantStatus: string | null;
+  crossPlantStatusValidityDate: string | null;
+  creationDate: string | null;
+  createdByUser: string | null;
+  lastChangeDate: string | null;
+  lastChangeDateTime: string | null;
+  isMarkedForDeletion: boolean;
   productOldId: string | null;
   productGroup: string | null;
   baseUnit: string | null;
   division: string | null;
+  industrySector: string | null;
   grossWeight: string | null;
   netWeight: string | null;
   weightUnit: string | null;
@@ -159,8 +235,15 @@ interface PlantRaw {
   valuationArea: string | null;
   salesOrganization: string | null;
   addressId: string | null;
+  defaultPurchasingOrganization: string | null;
   distributionChannel: string | null;
   division: string | null;
+  factoryCalendar: string | null;
+  isMarkedForArchiving: boolean;
+  language: string | null;
+  plantCategory: string | null;
+  plantCustomer: string | null;
+  plantSupplier: string | null;
 }
 
 interface CustomerCompanyAssignmentRaw {
@@ -200,6 +283,7 @@ export interface CustomerRecord {
   businessPartnerFullName: string;
   businessPartnerIsBlocked: boolean;
   creationDate: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface AddressRecord {
@@ -224,6 +308,7 @@ export interface ProductRecord {
   netWeight: number | null;
   weightUnit: string | null;
   productDescription: string;
+  sourceData: Record<string, unknown>;
 }
 
 export interface PlantRecord {
@@ -234,6 +319,7 @@ export interface PlantRecord {
   addressId: string | null;
   distributionChannel: string | null;
   division: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface SalesOrderRecord {
@@ -246,6 +332,7 @@ export interface SalesOrderRecord {
   overallDeliveryStatus: string | null;
   overallBillingStatus: string | null;
   salesOrderType: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface SalesOrderItemRecord {
@@ -260,6 +347,7 @@ export interface SalesOrderItemRecord {
   storageLocation: string | null;
   materialGroup: string | null;
   salesOrderItemCategory: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface DeliveryRecord {
@@ -268,6 +356,7 @@ export interface DeliveryRecord {
   shippingPoint: string | null;
   overallGoodsMovementStatus: string | null;
   overallPickingStatus: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface DeliveryItemRecord {
@@ -279,6 +368,7 @@ export interface DeliveryItemRecord {
   deliveryQuantityUnit: string | null;
   referenceSalesOrderId: string;
   referenceSalesOrderItemId: string;
+  sourceData: Record<string, unknown>;
 }
 
 export interface BillingDocumentRecord {
@@ -294,6 +384,7 @@ export interface BillingDocumentRecord {
   totalNetAmount: number;
   transactionCurrency: string | null;
   creationDate: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface BillingItemRecord {
@@ -306,6 +397,7 @@ export interface BillingItemRecord {
   transactionCurrency: string | null;
   referenceDeliveryDocumentId: string | null;
   referenceDeliveryDocumentItemId: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface JournalEntryRecord {
@@ -322,6 +414,7 @@ export interface JournalEntryRecord {
   transactionCurrency: string | null;
   clearingAccountingDocument: string | null;
   clearingDate: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface PaymentRecord {
@@ -337,6 +430,7 @@ export interface PaymentRecord {
   clearingDate: string | null;
   postingDate: string | null;
   documentDate: string | null;
+  sourceData: Record<string, unknown>;
 }
 
 export interface LookupAssignmentRecord {
@@ -453,6 +547,21 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
       businessPartnerFullName,
       businessPartnerIsBlocked: Boolean(partner.businessPartnerIsBlocked),
       creationDate: normalizeString(partner.creationDate),
+      sourceData: {
+        businessPartnerId: partner.businessPartner,
+        rawCustomerId: normalizeString(partner.customer) ?? partner.businessPartner,
+        correspondenceLanguage: normalizeString(partner.correspondenceLanguage),
+        createdByUser: normalizeString(partner.createdByUser),
+        creationTime: formatTimeValue(partner.creationTime),
+        firstName: normalizeString(partner.firstName),
+        formOfAddress: normalizeString(partner.formOfAddress),
+        industry: normalizeString(partner.industry),
+        isMarkedForArchiving: Boolean(partner.isMarkedForArchiving),
+        lastChangeDate: normalizeString(partner.lastChangeDate),
+        lastName: normalizeString(partner.lastName),
+        organizationBpName1: normalizeString(partner.organizationBpName1),
+        organizationBpName2: normalizeString(partner.organizationBpName2),
+      },
     };
   });
 
@@ -478,6 +587,16 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     netWeight: parseNullableNumber(product.netWeight),
     weightUnit: normalizeString(product.weightUnit),
     productDescription: productDescriptionsById.get(product.product) ?? product.product,
+    sourceData: {
+      createdByUser: normalizeString(product.createdByUser),
+      creationDate: normalizeString(product.creationDate),
+      crossPlantStatus: normalizeString(product.crossPlantStatus),
+      crossPlantStatusValidityDate: normalizeString(product.crossPlantStatusValidityDate),
+      industrySector: normalizeString(product.industrySector),
+      isMarkedForDeletion: Boolean(product.isMarkedForDeletion),
+      lastChangeDate: normalizeString(product.lastChangeDate),
+      lastChangeDateTime: normalizeString(product.lastChangeDateTime),
+    },
   }));
 
   const productById = new Map(products.map((product) => [product.productId, product]));
@@ -490,6 +609,15 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     addressId: normalizeString(plant.addressId),
     distributionChannel: normalizeString(plant.distributionChannel),
     division: normalizeString(plant.division),
+    sourceData: {
+      defaultPurchasingOrganization: normalizeString(plant.defaultPurchasingOrganization),
+      factoryCalendar: normalizeString(plant.factoryCalendar),
+      isMarkedForArchiving: Boolean(plant.isMarkedForArchiving),
+      language: normalizeString(plant.language),
+      plantCategory: normalizeString(plant.plantCategory),
+      plantCustomer: normalizeString(plant.plantCustomer),
+      plantSupplier: normalizeString(plant.plantSupplier),
+    },
   }));
 
   const salesOrders = salesOrderHeaders.map<SalesOrderRecord>((order) => ({
@@ -502,6 +630,23 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     overallDeliveryStatus: normalizeString(order.overallDeliveryStatus),
     overallBillingStatus: normalizeString(order.overallOrdReltdBillgStatus),
     salesOrderType: normalizeString(order.salesOrderType),
+    sourceData: {
+      salesOrganization: normalizeString(order.salesOrganization),
+      distributionChannel: normalizeString(order.distributionChannel),
+      organizationDivision: normalizeString(order.organizationDivision),
+      salesGroup: normalizeString(order.salesGroup),
+      salesOffice: normalizeString(order.salesOffice),
+      createdByUser: normalizeString(order.createdByUser),
+      lastChangeDateTime: normalizeString(order.lastChangeDateTime),
+      pricingDate: normalizeString(order.pricingDate),
+      overallSdDocReferenceStatus: normalizeString(order.overallSdDocReferenceStatus),
+      headerBillingBlockReason: normalizeString(order.headerBillingBlockReason),
+      deliveryBlockReason: normalizeString(order.deliveryBlockReason),
+      incotermsClassification: normalizeString(order.incotermsClassification),
+      incotermsLocation1: normalizeString(order.incotermsLocation1),
+      customerPaymentTerms: normalizeString(order.customerPaymentTerms),
+      totalCreditCheckStatus: normalizeString(order.totalCreditCheckStatus),
+    },
   }));
 
   const salesOrderById = new Map(salesOrders.map((order) => [order.salesOrderId, order]));
@@ -518,6 +663,10 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     storageLocation: normalizeString(item.storageLocation),
     materialGroup: normalizeString(item.materialGroup),
     salesOrderItemCategory: normalizeString(item.salesOrderItemCategory),
+    sourceData: {
+      itemBillingBlockReason: normalizeString(item.itemBillingBlockReason),
+      salesDocumentRjcnReason: normalizeString(item.salesDocumentRjcnReason),
+    },
   }));
 
   const deliveries = deliveryHeaders.map<DeliveryRecord>((delivery) => ({
@@ -526,6 +675,16 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     shippingPoint: normalizeString(delivery.shippingPoint),
     overallGoodsMovementStatus: normalizeString(delivery.overallGoodsMovementStatus),
     overallPickingStatus: normalizeString(delivery.overallPickingStatus),
+    sourceData: {
+      actualGoodsMovementDate: normalizeString(delivery.actualGoodsMovementDate),
+      actualGoodsMovementTime: formatTimeValue(delivery.actualGoodsMovementTime),
+      creationTime: formatTimeValue(delivery.creationTime),
+      deliveryBlockReason: normalizeString(delivery.deliveryBlockReason),
+      hdrGeneralIncompletionStatus: normalizeString(delivery.hdrGeneralIncompletionStatus),
+      headerBillingBlockReason: normalizeString(delivery.headerBillingBlockReason),
+      lastChangeDate: normalizeString(delivery.lastChangeDate),
+      overallProofOfDeliveryStatus: normalizeString(delivery.overallProofOfDeliveryStatus),
+    },
   }));
 
   const deliveryItems = deliveryItemsRaw.map<DeliveryItemRecord>((item) => ({
@@ -537,6 +696,11 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     deliveryQuantityUnit: normalizeString(item.deliveryQuantityUnit),
     referenceSalesOrderId: item.referenceSdDocument,
     referenceSalesOrderItemId: normalizeItemId(item.referenceSdDocumentItem),
+    sourceData: {
+      batch: normalizeString(item.batch),
+      itemBillingBlockReason: normalizeString(item.itemBillingBlockReason),
+      lastChangeDate: normalizeString(item.lastChangeDate),
+    },
   }));
 
   const deliveryItemByDeliveryItemId = new Map(
@@ -558,6 +722,10 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
       totalNetAmount: parseNumber(header.totalNetAmount),
       transactionCurrency: normalizeString(header.transactionCurrency),
       creationDate: normalizeString(header.creationDate),
+      sourceData: {
+        creationTime: formatTimeValue(header.creationTime),
+        lastChangeDateTime: normalizeString(header.lastChangeDateTime),
+      },
     });
   }
 
@@ -577,6 +745,14 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
       totalNetAmount: existing?.totalNetAmount ?? parseNumber(cancellation.totalNetAmount),
       transactionCurrency: normalizeString(cancellation.transactionCurrency) ?? existing?.transactionCurrency ?? null,
       creationDate: normalizeString(cancellation.creationDate) ?? existing?.creationDate ?? null,
+      sourceData: {
+        creationTime:
+          formatTimeValue(cancellation.creationTime) ??
+          (typeof existing?.sourceData.creationTime === "string" ? existing.sourceData.creationTime : null),
+        lastChangeDateTime:
+          normalizeString(cancellation.lastChangeDateTime) ??
+          (typeof existing?.sourceData.lastChangeDateTime === "string" ? existing.sourceData.lastChangeDateTime : null),
+      },
     });
   }
 
@@ -595,10 +771,16 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     transactionCurrency: normalizeString(item.transactionCurrency),
     referenceDeliveryDocumentId: normalizeString(item.referenceSdDocument),
     referenceDeliveryDocumentItemId: normalizeNullableItemId(item.referenceSdDocumentItem),
+    sourceData: {},
   }));
 
   const journalEntries = journalEntriesRaw.map<JournalEntryRecord>((entry) => ({
-    journalEntryId: makeCompositeId([entry.companyCode, entry.fiscalYear, entry.accountingDocument, entry.accountingDocumentItem]),
+    journalEntryId: makeCompositeId([
+      entry.companyCode,
+      entry.fiscalYear,
+      entry.accountingDocument,
+      entry.accountingDocumentItem,
+    ]),
     companyCode: entry.companyCode,
     fiscalYear: entry.fiscalYear,
     accountingDocumentId: entry.accountingDocument,
@@ -611,10 +793,27 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     transactionCurrency: normalizeString(entry.transactionCurrency),
     clearingAccountingDocument: normalizeString(entry.clearingAccountingDocument),
     clearingDate: normalizeString(entry.clearingDate),
+    sourceData: {
+      accountingDocumentType: normalizeString(entry.accountingDocumentType),
+      amountInCompanyCodeCurrency: parseNullableNumber(entry.amountInCompanyCodeCurrency),
+      assignmentReference: normalizeString(entry.assignmentReference),
+      clearingDocFiscalYear: normalizeString(entry.clearingDocFiscalYear),
+      companyCodeCurrency: normalizeString(entry.companyCodeCurrency),
+      costCenter: normalizeString(entry.costCenter),
+      financialAccountType: normalizeString(entry.financialAccountType),
+      glAccount: normalizeString(entry.glAccount),
+      lastChangeDateTime: normalizeString(entry.lastChangeDateTime),
+      profitCenter: normalizeString(entry.profitCenter),
+    },
   }));
 
   const payments = paymentsRaw.map<PaymentRecord>((payment) => ({
-    paymentId: makeCompositeId([payment.companyCode, payment.fiscalYear, payment.accountingDocument, payment.accountingDocumentItem]),
+    paymentId: makeCompositeId([
+      payment.companyCode,
+      payment.fiscalYear,
+      payment.accountingDocument,
+      payment.accountingDocumentItem,
+    ]),
     companyCode: payment.companyCode,
     fiscalYear: payment.fiscalYear,
     accountingDocumentId: payment.accountingDocument,
@@ -626,6 +825,20 @@ async function buildNormalizedDataset(datasetRoot: string): Promise<NormalizedDa
     clearingDate: normalizeString(payment.clearingDate),
     postingDate: normalizeString(payment.postingDate),
     documentDate: normalizeString(payment.documentDate),
+    sourceData: {
+      amountInCompanyCodeCurrency: parseNullableNumber(payment.amountInCompanyCodeCurrency),
+      assignmentReference: normalizeString(payment.assignmentReference),
+      clearingDocFiscalYear: normalizeString(payment.clearingDocFiscalYear),
+      companyCodeCurrency: normalizeString(payment.companyCodeCurrency),
+      costCenter: normalizeString(payment.costCenter),
+      financialAccountType: normalizeString(payment.financialAccountType),
+      glAccount: normalizeString(payment.glAccount),
+      invoiceReference: normalizeString(payment.invoiceReference),
+      invoiceReferenceFiscalYear: normalizeString(payment.invoiceReferenceFiscalYear),
+      profitCenter: normalizeString(payment.profitCenter),
+      salesDocument: normalizeString(payment.salesDocument),
+      salesDocumentItem: normalizeNullableItemId(payment.salesDocumentItem),
+    },
   }));
 
   const customerCompanyAssignments = customerCompanyAssignmentsRaw.map<LookupAssignmentRecord>((assignment) => ({
@@ -1076,6 +1289,24 @@ function normalizeString(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function formatTimeValue(value: string | TimeValue | null | undefined): string | null {
+  if (typeof value === "string") {
+    return normalizeString(value);
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const hours = typeof value.hours === "number" ? value.hours : 0;
+  const minutes = typeof value.minutes === "number" ? value.minutes : 0;
+  const seconds = typeof value.seconds === "number" ? value.seconds : 0;
+
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+}
+
 function parseNumber(value: string | number | null | undefined): number {
   if (typeof value === "number") {
     return value;
@@ -1157,6 +1388,11 @@ function extractSearchMetadata(metadata: Record<string, unknown>): string[] {
           collected.push(String(item));
         }
       }
+      continue;
+    }
+
+    if (value && typeof value === "object") {
+      collected.push(...extractSearchMetadata(value as Record<string, unknown>));
     }
   }
 

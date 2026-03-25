@@ -17,6 +17,7 @@ export const customers = pgTable("customers", {
   businessPartnerFullName: text("business_partner_full_name").notNull(),
   businessPartnerIsBlocked: boolean("business_partner_is_blocked").notNull().default(false),
   creationDate: timestamp("creation_date", { withTimezone: true }),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const addresses = pgTable("addresses", {
@@ -43,6 +44,7 @@ export const products = pgTable("products", {
   netWeight: doublePrecision("net_weight"),
   weightUnit: text("weight_unit"),
   productDescription: text("product_description").notNull(),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const plants = pgTable("plants", {
@@ -53,6 +55,7 @@ export const plants = pgTable("plants", {
   addressId: text("address_id"),
   distributionChannel: text("distribution_channel"),
   division: text("division"),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const salesOrders = pgTable("sales_orders", {
@@ -67,6 +70,7 @@ export const salesOrders = pgTable("sales_orders", {
   overallDeliveryStatus: text("overall_delivery_status"),
   overallBillingStatus: text("overall_billing_status"),
   salesOrderType: text("sales_order_type"),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const salesOrderItems = pgTable(
@@ -87,6 +91,7 @@ export const salesOrderItems = pgTable(
     storageLocation: text("storage_location"),
     materialGroup: text("material_group"),
     salesOrderItemCategory: text("sales_order_item_category"),
+    sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.salesOrderId, table.salesOrderItemId] }),
@@ -99,6 +104,7 @@ export const deliveries = pgTable("deliveries", {
   shippingPoint: text("shipping_point"),
   overallGoodsMovementStatus: text("overall_goods_movement_status"),
   overallPickingStatus: text("overall_picking_status"),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const deliveryItems = pgTable(
@@ -114,6 +120,7 @@ export const deliveryItems = pgTable(
     deliveryQuantityUnit: text("delivery_quantity_unit"),
     referenceSalesOrderId: text("reference_sales_order_id").notNull(),
     referenceSalesOrderItemId: text("reference_sales_order_item_id").notNull(),
+    sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.deliveryDocumentId, table.deliveryDocumentItemId] }),
@@ -133,6 +140,7 @@ export const billingDocuments = pgTable("billing_documents", {
   totalNetAmount: doublePrecision("total_net_amount").notNull(),
   transactionCurrency: text("transaction_currency"),
   creationDate: timestamp("creation_date", { withTimezone: true }),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const billingItems = pgTable(
@@ -149,6 +157,7 @@ export const billingItems = pgTable(
     transactionCurrency: text("transaction_currency"),
     referenceDeliveryDocumentId: text("reference_delivery_document_id"),
     referenceDeliveryDocumentItemId: text("reference_delivery_document_item_id"),
+    sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.billingDocumentId, table.billingDocumentItemId] }),
@@ -169,6 +178,7 @@ export const journalEntries = pgTable("journal_entries", {
   transactionCurrency: text("transaction_currency"),
   clearingAccountingDocument: text("clearing_accounting_document"),
   clearingDate: timestamp("clearing_date", { withTimezone: true }),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const payments = pgTable("payments", {
@@ -184,6 +194,7 @@ export const payments = pgTable("payments", {
   clearingDate: timestamp("clearing_date", { withTimezone: true }),
   postingDate: timestamp("posting_date", { withTimezone: true }),
   documentDate: timestamp("document_date", { withTimezone: true }),
+  sourceData: jsonb("source_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
 });
 
 export const customerCompanyAssignments = pgTable(
