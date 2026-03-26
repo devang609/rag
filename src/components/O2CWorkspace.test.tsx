@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
+import { vi } from "vitest";
 
 import { O2CWorkspace } from "@/components/O2CWorkspace";
 
@@ -12,6 +13,7 @@ describe("O2CWorkspace", () => {
     const fetchMock = vi.fn(async (input: string) => {
       if (input.startsWith("/api/graph/neighborhood")) {
         return {
+          ok: true,
           json: async () => ({
             node: {
               nodeId: "billing_document:90504248",
@@ -29,6 +31,7 @@ describe("O2CWorkspace", () => {
 
       if (input.startsWith("/api/query")) {
         return {
+          ok: true,
           json: async () => ({
             answer: "Billing document 90504248 traces back to sales order 740552.",
             sql: "select billing_document_id from v_billing_trace limit 20",
@@ -40,6 +43,7 @@ describe("O2CWorkspace", () => {
       }
 
       return {
+        ok: true,
         json: async () => ({ results: [] }),
       };
     });

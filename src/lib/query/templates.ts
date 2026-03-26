@@ -388,7 +388,7 @@ limit 1
   return null;
 }
 
-function prioritizeStatus(statuses: string[]) {
+function prioritizeStatus(statuses: string[]): string {
   const priority = new Map([
     ["delivered_not_billed", 4],
     ["billed_not_posted", 3],
@@ -396,7 +396,7 @@ function prioritizeStatus(statuses: string[]) {
     ["ordered_not_delivered", 1],
   ]);
 
-  return [...statuses].sort((left, right) => (priority.get(right) ?? 0) - (priority.get(left) ?? 0))[0];
+  return [...statuses].sort((left, right) => (priority.get(right) ?? 0) - (priority.get(left) ?? 0))[0] ?? "unknown";
 }
 
 function matchCustomer(normalizedMessage: string, dataset: NormalizedDataset) {

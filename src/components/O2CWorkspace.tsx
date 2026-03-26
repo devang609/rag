@@ -50,6 +50,11 @@ export function O2CWorkspace() {
           `/api/graph/neighborhood?nodeId=${encodeURIComponent(FEATURED_NODE_ID)}&depth=1`,
           { signal: controller.signal },
         );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch initial graph: ${response.status}`);
+        }
+
         const payload = (await response.json()) as NeighborhoodPayload;
 
         if (controller.signal.aborted) {
@@ -90,6 +95,11 @@ export function O2CWorkspace() {
       const response = await fetch(`/api/graph/search?q=${encodeURIComponent(query)}`, {
         signal: controller.signal,
       });
+
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
+
       const payload = (await response.json()) as { results: GraphSearchResult[] };
       setSearchResults(payload.results);
     })().catch(() => {
@@ -168,6 +178,10 @@ export function O2CWorkspace() {
       signal,
     });
 
+    if (!response.ok) {
+      throw new Error(`Failed to fetch neighborhood: ${response.status}`);
+    }
+
     return (await response.json()) as NeighborhoodPayload;
   }
 
@@ -191,6 +205,10 @@ export function O2CWorkspace() {
           focusNodeIds: selectedNode ? [selectedNode.nodeId] : undefined,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Query failed: ${response.status}`);
+      }
 
       const payload = (await response.json()) as QueryResponseBody;
       setHistory((current) => [{ prompt, response: payload }, ...current].slice(0, 6));
