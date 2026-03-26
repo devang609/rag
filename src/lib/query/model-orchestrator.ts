@@ -9,7 +9,7 @@
  * 5. Maintains graceful degradation
  */
 
-import { generateObject, generateText, type GenerateObjectResult, type GenerateTextResult, type CoreTool } from "ai";
+import { generateObject, generateText, type GenerateObjectResult, type GenerateTextResult, type Tool } from "ai";
 import { google } from "@ai-sdk/google";
 import type { z } from "zod";
 
@@ -402,11 +402,11 @@ export async function orchestratedGenerateText(
   options: {
     prompt: string;
     orchestration?: OrchestrationOptions;
-    tools?: Record<string, CoreTool>;
+    tools?: Record<string, Tool>;
     maxSteps?: number;
   },
   config: Partial<OrchestratorConfig> = {},
-): Promise<OrchestratedResult<GenerateTextResult<Record<string, CoreTool>, never>>> {
+): Promise<OrchestratedResult<GenerateTextResult<Record<string, Tool>, never>>> {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const orchestration = options.orchestration ?? {};
 
@@ -518,7 +518,7 @@ export async function flashGenerateObject<T extends z.ZodType>(
  */
 export async function flashGenerateText(
   prompt: string,
-): Promise<{ result: GenerateTextResult<Record<string, CoreTool>, never>; modelUsed: GeminiModel }> {
+): Promise<{ result: GenerateTextResult<Record<string, Tool>, never>; modelUsed: GeminiModel }> {
   const orchestrated = await orchestratedGenerateText(
     { prompt, orchestration: { preferredTier: "flash", allowEscalation: false } },
     { maxRetriesPerModel: 1 },
