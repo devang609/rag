@@ -24,24 +24,6 @@ The project supports two runtime modes:
   - semantic SQL executes against the database
   - broader NL-to-SQL fallback is enabled
 
-## What This Solves
-
-The raw dataset is spread across multiple business documents and master-data files:
-
-- Sales Orders
-- Deliveries
-- Billing Documents / Invoices
-- Journal Entries
-- Payments
-- Customers
-- Products
-- Addresses
-- Plants
-
-This app unifies those pieces into a connected business graph and exposes both:
-
-- a visual relationship explorer
-- a conversational interface that translates natural language into structured reads
 
 ## Tech Stack
 
@@ -71,18 +53,335 @@ This app unifies those pieces into a connected business graph and exposes both:
 | ESLint | Static linting |
 | Docker Compose | Local Postgres + Adminer runtime |
 
-## Architecture
+## Architecture Diagrams
+
+### 1. System Architecture Overview
 
 ```mermaid
+flowchart TB
+    subgraph Presentation["Presentation Layer - Next.js React"]
+        Page["page.tsx"]
+        Workspace["O2CWorkspace.tsx"]
+        Canvas["GraphCanvas.tsx"]
+        Table["ResultTable.tsx"]
+        
+        Page --> Workspace
+        Workspace --> Canvas
+        Workspace --> Table
+    end
+
+    subgraph API["API Layer"]
+        SearchAPI["/api/graph/search"]
+        NeighborAPI["/api/graph/neighborhood"]
+        QueryAPI["/api/query"]
+    end
+
+    subgraph Services["Service Layer"]
+        GraphService["graph/service.ts"]
+        QueryService["query/service.ts"]
+        Templates["query/templates.ts"]
+        Guardrails["query/guardrails.ts"]
+        Catalog["query/semantic-catalog.ts"]
+    end
+
+    subgraph Data["Data Layer"]
+        Client["db/client.ts"]
+        Schema["db/schema.ts"]
+        Views["db/views.ts"]
+        Dataset["o2c/dataset.ts"]
+        Seed["db/seed.ts"]
+    end
+
+    subgraph External["External Systems"]
+        PG[(PostgreSQL)]
+        Gemini[("Gemini AI")]
+        JSONL[("JSONL Files")]
+    end
+
+    Workspace --> SearchAPI
+    Workspace --> NeighborAPI
+    Workspace --> QueryAPI
+
+    SearchAPI --> GraphService
+    NeighborAPI --> GraphService
+    QueryAPI --> QueryService
+
+    QueryService --> Templates
+    QueryService --> Guardrails
+    QueryService --> Catalog
+    QueryService --> Gemini
+
+    GraphService --> Client
+    GraphService --> Dataset
+    QueryService --> Client
+
+    Client --> PG
+    Dataset --> JSONL
+    Seed --> Schema
+    Schema --> PG
+    Views --> PG
+```
+### 2. Graph DB Schema
+```mermaid
+erDiagram
+    graph_nodes {
+        text node_id PK
+        text node_type
+        text entity_id
+        text label
+        text subtitle
+        jsonb metadata
+    }
+
+    graph_edges {
+        text edge_id PK
+        text source_node_id FK
+        text target_node_id FK
+        text relation
+        jsonb metadata
+    }
+
+    v_entity_lookup {
+        text node_id
+        text node_type
+        text entity_id
+        text label
+        text subtitle
+        text search_text
+    }
+
+    graph_nodes ||--o{ graph_edges : source
+    graph_nodes ||--o{ graph_edges : target
+    graph_nodes ||--|| v_entity_lookup : indexes
+```
+
+### 3. Graph Entity Relationships
+```mermaid
+flowchart TB
+    Customer((CUSTOMER))
+    Address((ADDRESS))
+    Product((PRODUCT))
+    Plant((PLANT))
+    SalesOrder((SALES_ORDER))
+    SalesOrderItem((SALES_ORDER_ITEM))
+    Delivery((DELIVERY))
+    DeliveryItem((DELIVERY_ITEM))
+    BillingDoc((BILLING_DOC))
+    BillingItem((BILLING_ITEM))
+    JournalEntry((JOURNAL_ENTRY))
+    Payment((PAYMENT))
+
+    Customer -->|HAS_ADDRESS| Address
+    SalesOrder -->|PLACED_BY| Customer
+    SalesOrder -->|HAS_ITEM| SalesOrderItem
+    SalesOrderItem -->|FOR_PRODUCT| Product
+    SalesOrderItem -->|REQUESTS_FROM| Plant
+    SalesOrderItem -->|FULFILLED_BY| DeliveryItem
+    Delivery -->|HAS_ITEM| DeliveryItem
+    DeliveryItem -->|SHIPPED_FROM| Plant
+    DeliveryItem -->|BILLED_AS| BillingItem
+    BillingDoc -->|HAS_ITEM| BillingItem
+    BillingDoc -->|BILLED_TO| Customer
+    BillingItem -->|FOR_PRODUCT| Product
+    BillingItem -->|POSTED_TO| JournalEntry
+    JournalEntry -->|CLEARED_BY| Payment
+```
+### 4. O2C Flow Status State Machine
+```mermaid
+stateDiagram-v2
+    [*] --> ordered_not_delivered
+    ordered_not_delivered --> delivered_not_billed
+    delivered_not_billed --> billed_not_posted
+    billed_not_posted --> posted_not_cleared
+    posted_not_cleared --> complete
+    complete --> [*]
+```
+
+### 5. Data Pipeline Flow
+```mermaid
 flowchart LR
-  A["Raw JSONL dataset"] --> B["Normalization layer"]
-  B --> C["Normalized business tables"]
-  C --> D["Graph projection"]
-  C --> E["Semantic SQL views"]
-  D --> F["Graph APIs"]
-  E --> G["NL query service"]
-  F --> H["Graph explorer UI"]
-  G --> I["Chat UI"]
+    JSONL["JSONL Files<br/>17 directories"]
+    Load["loadNormalizedDataset"]
+    Build["buildGraph"]
+    Seed["seedDatabase"]
+    Tables["PostgreSQL Tables"]
+    Views["21 Analytical Views"]
+
+    JSONL --> Load
+    Load --> Build
+    Build --> Seed
+    Seed --> Tables
+    Seed --> Views
+```
+
+### 6. BFS Graph Traversal Algorithm
+```mermaid
+flowchart TD
+    Start(["Start: nodeId, depth"])
+    Init["visitedNodes = Set nodeId<br/>visitedEdges = Set empty<br/>frontier = nodeId"]
+    Loop{"iteration < depth?"}
+    Query["SELECT edges WHERE<br/>source OR target IN frontier"]
+    Process["Add edges to visitedEdges<br/>Add nodes to visitedNodes<br/>Update frontier"]
+    FetchNodes["SELECT nodes WHERE<br/>node_id IN visitedNodes"]
+    FetchEdges["SELECT edges WHERE<br/>edge_id IN visitedEdges"]
+    Return(["Return nodes and edges"])
+
+    Start --> Init
+    Init --> Loop
+    Loop -->|Yes| Query
+    Query --> Process
+    Process --> Loop
+    Loop -->|No| FetchNodes
+    FetchNodes --> FetchEdges
+    FetchEdges --> Return
+```
+
+
+### 7. Natural Language Query Pipeline
+```mermaid
+flowchart TD
+    Input["User Message"]
+    Template{"Pattern<br/>Match?"}
+    TemplateSQL["Execute Template SQL"]
+    Domain{"In Domain?"}
+    Refuse["Return Refusal"]
+    HasLLM{"Gemini<br/>Configured?"}
+    NotConfigured["Return Not Configured"]
+    Generate["generateSqlPlan"]
+    Validate["validateReadOnlySql"]
+    Execute["executeSql"]
+    Repair["repairSqlPlan"]
+    Answer["buildGroundedAnswer"]
+    Extract["deriveRelatedNodeIds"]
+    Response["QueryResponseBody"]
+
+    Input --> Template
+    Template -->|Yes| TemplateSQL
+    Template -->|No| Domain
+    Domain -->|No| Refuse
+    Domain -->|Yes| HasLLM
+    HasLLM -->|No| NotConfigured
+    HasLLM -->|Yes| Generate
+    Generate --> Validate
+    Validate --> Execute
+    Execute -->|Error| Repair
+    Repair --> Validate
+    Execute -->|Success| Answer
+    TemplateSQL --> Answer
+    Answer --> Extract
+    Extract --> Response
+```
+
+### 8. File Structure
+```mermaid
+flowchart TB
+    subgraph src["src/"]
+        subgraph app["app/"]
+            page["page.tsx"]
+            layout["layout.tsx"]
+            globals["globals.css"]
+            subgraph api["api/"]
+                subgraph graph["graph/"]
+                    search["search/route.ts"]
+                    neighborhood["neighborhood/route.ts"]
+                end
+                query["query/route.ts"]
+            end
+        end
+        subgraph components["components/"]
+            O2C["O2CWorkspace.tsx"]
+            Canvas["GraphCanvas.tsx"]
+            Result["ResultTable.tsx"]
+        end
+        subgraph db["db/"]
+            client["client.ts"]
+            schema["schema.ts"]
+            views["views.ts"]
+            seed["seed.ts"]
+        end
+        subgraph lib["lib/"]
+            env["env.ts"]
+            constants["constants.ts"]
+            contracts["contracts.ts"]
+            subgraph graphLib["graph/"]
+                graphService["service.ts"]
+            end
+            subgraph queryLib["query/"]
+                queryService["service.ts"]
+                templates["templates.ts"]
+                guardrails["guardrails.ts"]
+                catalog["semantic-catalog.ts"]
+            end
+            subgraph o2c["o2c/"]
+                dataset["dataset.ts"]
+            end
+        end
+    end
+```
+
+### 9. Database Tables Overview
+```mermaid
+flowchart TB
+    subgraph Master["Master Data"]
+        customers
+        addresses
+        products
+        plants
+    end
+
+    subgraph Trans["Transactions"]
+        sales_orders
+        sales_order_items
+        deliveries
+        delivery_items
+        billing_documents
+        billing_items
+        journal_entries
+        payments
+    end
+
+    subgraph Assign["Assignments"]
+        customer_company_assignments
+        customer_sales_area_assignments
+        product_plants
+        product_storage_locations
+    end
+
+    subgraph Graph["Graph Tables"]
+        graph_nodes
+        graph_edges
+    end
+
+    subgraph Views["Key Views"]
+        v_entity_lookup
+        v_o2c_flow_item
+        v_billing_trace
+        v_customers
+        v_products
+    end
+
+    Master --> Trans
+    Trans --> Graph
+    Master --> Graph
+    Graph --> Views
+```
+
+### 10. Edge Types Reference
+```mermaid
+flowchart LR
+    subgraph Edges["Graph Edge Types"]
+        E1["HAS_ADDRESS"]
+        E2["PLACED_BY"]
+        E3["HAS_ITEM"]
+        E4["FOR_PRODUCT"]
+        E5["REQUESTS_FROM"]
+        E6["FULFILLED_BY"]
+        E7["SHIPPED_FROM"]
+        E8["BILLED_AS"]
+        E9["BILLED_TO"]
+        E10["POSTED_TO"]
+        E11["CLEARED_BY"]
+    end
 ```
 
 ### Major layers
