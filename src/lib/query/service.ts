@@ -1,5 +1,3 @@
-import { generateObject, generateText } from "ai";
-import { google } from "@ai-sdk/google";
 import { z } from "zod";
 
 import { getPool } from "@/db/client";
@@ -8,6 +6,11 @@ import { type QueryResponseBody } from "@/lib/contracts";
 import { env } from "@/lib/env";
 import { loadNormalizedDataset, type NormalizedDataset } from "@/lib/o2c/dataset";
 import { validateReadOnlySql } from "@/lib/query/guardrails";
+import {
+  orchestratedGenerateObject,
+  flashGenerateText,
+  flashGenerateObject,
+} from "@/lib/query/model-orchestrator";
 import {
   formatSemanticCatalogForPrompt,
   formatSemanticRelationshipsForPrompt,
@@ -177,9 +180,8 @@ async function buildGroundedAnswer(
     return buildGenericAnswer(rowsPreview);
   }
 
-  const result = await generateText({
-    model: google("gemini-2.5-flash-lite"),
-    prompt: `
+  // Use flash model for answer generation (simple task, high throughput)
+  const { result } = await flashGenerateText(`
 Answer the question using only the returned rows.
 If the question asks for a direct attribute and the rows contain it, answer with the exact value in the first sentence.
 If a unit is present, include it.
@@ -189,8 +191,7 @@ Do not invent facts, totals, trends, or labels that are not in the rows.
 Question: ${message}
 Planner rationale: ${rationale}
 Rows: ${JSON.stringify(rowsPreview)}
-    `.trim(),
-  });
+    `.trim());
 
   return result.text;
 }
@@ -229,13 +230,13 @@ async function classifyDomain(
   }
 
   if (env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    const result = await generateObject({
-      model: google("gemini-2.5-flash-lite"),
-      schema: z.object({
+    // Use flash model for domain classification (simple task, high throughput)
+    const { result } = await flashGenerateObject(
+      z.object({
         inDomain: z.boolean(),
         reason: z.string(),
       }),
-      prompt: `
+      `
 Decide whether this user message can be answered from the SAP order-to-cash dataset.
 Return inDomain=false if the question asks for information that is not available in the supported views, even if it mentions customers, products, plants, or orders.
 In-domain topics include customer/product/plant master data, sales orders, sales order items, deliveries, billing documents, billing items, AR journal entries, AR payments, graph entities, and curated O2C flow analytics.
@@ -252,7 +253,7 @@ ${entityHints.length > 0 ? entityHints.join("\n") : "none"}
 
 Message: ${message}
       `.trim(),
-    });
+    );
 
     return result.object;
   }
@@ -306,28 +307,26 @@ ${errorMessage}
 }
 
 async function generateSqlPlanWithPrompt(prompt: string) {
-  let lastError: unknown;
+  // Use orchestrated generation for SQL planning
+  // This is a moderate complexity task - start with flash, allow escalation to pro if needed
+  const orchestrated = await orchestratedGenerateObject(
+    {
+      schema: plannerSchema,
+      prompt,
+      orchestration: {
+        preferredTier: "flash",
+        allowEscalation: true,
+        taskComplexity: "moderate",
+      },
+    },
+    { maxRetriesPerModel: 1 },
+  );
 
-  for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const result = await generateObject({
-          model: google(modelName),
-          schema: plannerSchema,
-          prompt,
-        });
-
-        return {
-          sql: prepareGeneratedSql(result.object.sql),
-          rationale: `${result.object.rationale} Planned with ${modelName}.`,
-        };
-      } catch (error) {
-        lastError = error;
-      }
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error("Unable to generate a safe SQL query.");
+  const escalationNote = orchestrated.escalated ? " (escalated to pro tier)" : "";
+  return {
+    sql: prepareGeneratedSql(orchestrated.result.object.sql),
+    rationale: `${orchestrated.result.object.rationale} Planned with ${orchestrated.modelUsed}${escalationNote}.`,
+  };
 }
 
 function buildPlannerPrompt(message: string, focusNodeIds: string[], entityHints: string[]) {
