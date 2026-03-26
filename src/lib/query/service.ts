@@ -181,7 +181,7 @@ async function buildGroundedAnswer(
   }
 
   // Use flash model for answer generation (simple task, high throughput)
-  const { result } = await flashGenerateText(`
+  const { text } = await flashGenerateText(`
 Answer the question using only the returned rows.
 If the question asks for a direct attribute and the rows contain it, answer with the exact value in the first sentence.
 If a unit is present, include it.
@@ -193,7 +193,7 @@ Planner rationale: ${rationale}
 Rows: ${JSON.stringify(rowsPreview)}
     `.trim());
 
-  return result.text;
+  return text;
 }
 
 async function classifyDomain(
@@ -231,7 +231,7 @@ async function classifyDomain(
 
   if (env.GOOGLE_GENERATIVE_AI_API_KEY) {
     // Use flash model for domain classification (simple task, high throughput)
-    const { result } = await flashGenerateObject(
+    const { object } = await flashGenerateObject(
       z.object({
         inDomain: z.boolean(),
         reason: z.string(),
@@ -255,7 +255,7 @@ Message: ${message}
       `.trim(),
     );
 
-    return result.object;
+    return object;
   }
 
   return { inDomain: false, reason: "No domain signals were found." };
@@ -324,8 +324,8 @@ async function generateSqlPlanWithPrompt(prompt: string) {
 
   const escalationNote = orchestrated.escalated ? " (escalated to pro tier)" : "";
   return {
-    sql: prepareGeneratedSql(orchestrated.result.object.sql),
-    rationale: `${orchestrated.result.object.rationale} Planned with ${orchestrated.modelUsed}${escalationNote}.`,
+    sql: prepareGeneratedSql(orchestrated.object.sql),
+    rationale: `${orchestrated.object.rationale} Planned with ${orchestrated.modelUsed}${escalationNote}.`,
   };
 }
 

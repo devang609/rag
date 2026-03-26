@@ -9,7 +9,7 @@
  * 5. Maintains graceful degradation
  */
 
-import { generateObject, generateText, type GenerateObjectResult, type GenerateTextResult, type Tool } from "ai";
+import { generateObject, generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import type { z } from "zod";
 
@@ -272,10 +272,21 @@ function extractRetryAfter(error: unknown): number {
 }
 
 /**
- * Result wrapper for orchestrated calls
+ * Result wrapper for orchestrated generateObject calls
  */
-export interface OrchestratedResult<T> {
-  result: T;
+export interface OrchestratedObjectResult<T> {
+  object: T;
+  modelUsed: GeminiModel;
+  attempts: number;
+  escalated: boolean;
+  deferred: boolean;
+}
+
+/**
+ * Result wrapper for orchestrated generateText calls
+ */
+export interface OrchestratedTextResult {
+  text: string;
   modelUsed: GeminiModel;
   attempts: number;
   escalated: boolean;
@@ -301,7 +312,7 @@ export async function orchestratedGenerateObject<T extends z.ZodType>(
     orchestration?: OrchestrationOptions;
   },
   config: Partial<OrchestratorConfig> = {},
-): Promise<OrchestratedResult<GenerateObjectResult<z.infer<T>>>> {
+): Promise<OrchestratedObjectResult<z.infer<T>>> {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const orchestration = options.orchestration ?? {};
 
@@ -311,7 +322,7 @@ export async function orchestratedGenerateObject<T extends z.ZodType>(
 
   let attempts = 0;
   let escalated = false;
-  let deferred = false;
+  const deferred = false;
   let lastError: unknown;
 
   // Try flash tier first (unless explicitly requesting pro)
@@ -329,7 +340,7 @@ export async function orchestratedGenerateObject<T extends z.ZodType>(
         });
 
         return {
-          result,
+          object: result.object as z.infer<T>,
           modelUsed: modelName,
           attempts,
           escalated,
@@ -368,7 +379,7 @@ export async function orchestratedGenerateObject<T extends z.ZodType>(
           });
 
           return {
-            result,
+            object: result.object as z.infer<T>,
             modelUsed: modelName,
             attempts,
             escalated,
@@ -402,11 +413,9 @@ export async function orchestratedGenerateText(
   options: {
     prompt: string;
     orchestration?: OrchestrationOptions;
-    tools?: Record<string, Tool>;
-    maxSteps?: number;
   },
   config: Partial<OrchestratorConfig> = {},
-): Promise<OrchestratedResult<GenerateTextResult<Record<string, Tool>, never>>> {
+): Promise<OrchestratedTextResult> {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const orchestration = options.orchestration ?? {};
 
@@ -415,7 +424,7 @@ export async function orchestratedGenerateText(
 
   let attempts = 0;
   let escalated = false;
-  let deferred = false;
+  const deferred = false;
   let lastError: unknown;
 
   const flashModels = startTier === "flash" ? getAvailableModels(MODEL_TIERS.flash) : [];
@@ -428,12 +437,10 @@ export async function orchestratedGenerateText(
         const result = await generateText({
           model: google(modelName),
           prompt: options.prompt,
-          tools: options.tools,
-          maxSteps: options.maxSteps,
         });
 
         return {
-          result,
+          text: result.text,
           modelUsed: modelName,
           attempts,
           escalated,
@@ -467,12 +474,10 @@ export async function orchestratedGenerateText(
           const result = await generateText({
             model: google(modelName),
             prompt: options.prompt,
-            tools: options.tools,
-            maxSteps: options.maxSteps,
           });
 
           return {
-            result,
+            text: result.text,
             modelUsed: modelName,
             attempts,
             escalated,
@@ -505,12 +510,12 @@ export async function orchestratedGenerateText(
 export async function flashGenerateObject<T extends z.ZodType>(
   schema: T,
   prompt: string,
-): Promise<{ result: GenerateObjectResult<z.infer<T>>; modelUsed: GeminiModel }> {
+): Promise<{ object: z.infer<T>; modelUsed: GeminiModel }> {
   const orchestrated = await orchestratedGenerateObject(
     { schema, prompt, orchestration: { preferredTier: "flash", allowEscalation: false } },
     { maxRetriesPerModel: 1 },
   );
-  return { result: orchestrated.result, modelUsed: orchestrated.modelUsed };
+  return { object: orchestrated.object, modelUsed: orchestrated.modelUsed };
 }
 
 /**
@@ -518,12 +523,12 @@ export async function flashGenerateObject<T extends z.ZodType>(
  */
 export async function flashGenerateText(
   prompt: string,
-): Promise<{ result: GenerateTextResult<Record<string, Tool>, never>; modelUsed: GeminiModel }> {
+): Promise<{ text: string; modelUsed: GeminiModel }> {
   const orchestrated = await orchestratedGenerateText(
     { prompt, orchestration: { preferredTier: "flash", allowEscalation: false } },
     { maxRetriesPerModel: 1 },
   );
-  return { result: orchestrated.result, modelUsed: orchestrated.modelUsed };
+  return { text: orchestrated.text, modelUsed: orchestrated.modelUsed };
 }
 
 /**
